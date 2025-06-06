@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const MediaViewer = ({ media, onMediaEnd, isCurrent }) => {
+const MediaViewer = ({ media, angles, currentAngleIndex, onMediaEnd, isCurrent, onAngleChange }) => {
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const intervalRef = useRef(null);
   const [isHovered, setIsHovered] = useState(false);
   const [liked, setLiked] = useState(false);
-
-  // Remove video-related states and refs.
+  const intervalRef = useRef(null);
 
   useEffect(() => {
     setProgress(0);
@@ -17,11 +15,13 @@ const MediaViewer = ({ media, onMediaEnd, isCurrent }) => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
+
     if (isCurrent) {
       const img = new Image();
       img.src = media;
       img.onload = () => {
         setIsLoading(false);
+        // 5 second timer for images (50 intervals of 100ms)
         intervalRef.current = setInterval(() => {
           setProgress((prevProgress) => {
             if (prevProgress >= 100) {
@@ -40,6 +40,7 @@ const MediaViewer = ({ media, onMediaEnd, isCurrent }) => {
         setHasError(true);
       };
     }
+
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -47,19 +48,13 @@ const MediaViewer = ({ media, onMediaEnd, isCurrent }) => {
     };
   }, [media, onMediaEnd, isCurrent]);
 
-  const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(videoRef.current.muted);
-    }
-  };
-
   const handleImageError = () => {
     setIsLoading(false);
     setHasError(true);
   };
 
   const handleLike = () => setLiked((prev) => !prev);
+  
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({ url: window.location.href, title: 'Check out this look!' });
@@ -70,7 +65,7 @@ const MediaViewer = ({ media, onMediaEnd, isCurrent }) => {
 
   const renderLoadingState = () => (
     <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-fashion-pink"></div>
     </div>
   );
 
@@ -81,26 +76,35 @@ const MediaViewer = ({ media, onMediaEnd, isCurrent }) => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       </div>
-      <p className="text-gray-700">Failed to load media</p>
+      <p className="text-gray-700">Failed to load image</p>
     </div>
   );
 
   const renderProgressBar = () => (
-    <div className="absolute bottom-0 left-0 w-full h-2 bg-gradient-to-r from-gray-200 to-gray-300 rounded-b-lg overflow-hidden shadow-inner">
-      <div
-        className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-100 ease-linear rounded-b-lg"
-        style={{ width: `${progress}%` }}
-      />
+    <div className="absolute top-2 left-2 right-2 flex space-x-1 z-20">
+      {angles.map((_, idx) => (
+        <div key={idx} className="h-1.5 bg-white/30 rounded-full flex-1 overflow-hidden">
+          {idx === currentAngleIndex && (
+            <div 
+              className="h-full bg-white transition-all duration-100 ease-linear"
+              style={{ width: `${progress}%` }}
+            />
+          )}
+          {idx < currentAngleIndex && (
+            <div className="h-full bg-white w-full" />
+          )}
+        </div>
+      ))}
     </div>
   );
 
   return (
     <div
-      className="relative w-full h-full flex items-center justify-center p-2 sm:p-6"
+      className="relative w-full h-full flex items-center justify-center"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden w-full max-w-2xl aspect-video flex items-center justify-center transition-transform duration-300 hover:scale-[1.02]">
+      <div className="relative bg-black overflow-hidden w-full h-full flex items-center justify-center">
         {isLoading && renderLoadingState()}
         {hasError && renderErrorState()}
         {!hasError && (
@@ -108,37 +112,36 @@ const MediaViewer = ({ media, onMediaEnd, isCurrent }) => {
             <img
               src={media}
               alt="Look"
-              className={`w-full h-full object-cover transition-opacity duration-500 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+              className="w-full h-full object-contain md:object-cover transition-opacity duration-500 ${isLoading ? 'opacity-0' : 'opacity-100'}"
               onLoad={() => setIsLoading(false)}
               onError={handleImageError}
-              style={{ minHeight: 200 }}
             />
-            {/* Like/Share Buttons Overlay */}
-            <div className={`absolute top-4 right-4 flex space-x-3 z-10 transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-80'}`}>
-              <button
-                onClick={handleLike}
-                className={`bg-white/80 hover:bg-pink-100 border border-pink-200 shadow p-2 rounded-full flex items-center transition-colors duration-200 ${liked ? 'text-pink-500' : 'text-gray-500'}`}
-                aria-label="Like this post"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill={liked ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318C5.89 4.746 8.118 4.746 9.69 6.318l1.31 1.31 1.31-1.31c1.572-1.572 3.8-1.572 5.372 0 1.572 1.572 1.572 3.8 0 5.372L12 20.364l-6.372-8.674c-1.572-1.572-1.572-3.8 0-5.372z" />
-                </svg>
-              </button>
-              <button
-                onClick={handleShare}
-                className="bg-white/80 hover:bg-blue-100 border border-blue-200 shadow p-2 rounded-full flex items-center text-blue-500 transition-colors duration-200"
-                aria-label="Share this post"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v.01M8 12v.01M12 12v.01M16 12v.01M20 12v.01" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8V6a4 4 0 00-8 0v2" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v6" />
-                </svg>
-              </button>
-            </div>
-            {isCurrent && renderProgressBar()}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
           </>
         )}
+        
+        {/* Like/Share Buttons Overlay */}
+        <div className={`absolute top-14 right-4 flex space-x-3 z-10 transition-opacity duration-300 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
+          <button
+            onClick={handleLike}
+            className={`bg-white/80 hover:bg-fashion-pink hover:text-white border border-pink-200 shadow p-2 rounded-full flex items-center transition-all duration-200 ${liked ? 'text-white bg-fashion-pink' : 'text-gray-500'} backdrop-blur-sm`}
+            aria-label="Like this look"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill={liked ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318C5.89 4.746 8.118 4.746 9.69 6.318l1.31 1.31 1.31-1.31c1.572-1.572 3.8-1.572 5.372 0 1.572 1.572 1.572 3.8 0 5.372L12 20.364l-6.372-8.674c-1.572-1.572-1.572-3.8 0-5.372z" />
+            </svg>
+          </button>
+          <button
+            onClick={handleShare}
+            className="bg-white/80 hover:bg-fashion-purple hover:text-white border border-purple-200 shadow p-2 rounded-full flex items-center text-gray-500 hover:text-white transition-all duration-200 backdrop-blur-sm"
+            aria-label="Share this look"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-6 w-6">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6.632L15.316 10m5.854-1.24a2 2 0 11-.708-.708L22.5 5.5 10.5 17.5 7.5 14.5 4.5 17.5 1.5 14.5 5.5 10.5 1.5 7.5 4.5 4.5 7.5 1.5 10.5 4.5 14.5 1.5 17.5 4.5 22.5 5.5z" />
+            </svg>
+          </button>
+        </div>
+        {isCurrent && renderProgressBar()}
       </div>
     </div>
   );
